@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
@@ -13,80 +14,83 @@ import (
 	"github.com/joho/godotenv"
 )
 
-
 type Value struct {
-    Value string `dynamodbav:"value" json:"value"`
-    Timestamp string `dynamodbav:"timestamp" json:"timestamp"`
+	Value     string `dynamodbav:"value" json:"value"`
+	Timestamp string `dynamodbav:"timestamp" json:"timestamp"`
 }
 
 type Device struct {
-     DeviceID string `dynamodbav:"deviceID" json:"deviceID"`
-     Testing string `dynamodbav:"testing" json:"testing"`
-     Flow []Value `dynamodbav:"last_flow" json:"last_flow"`
+	DeviceID string  `dynamodbav:"deviceID" json:"deviceID"`
+	Testing  string  `dynamodbav:"testing" json:"testing"`
+	Flow     []Value `dynamodbav:"last_flow" json:"last_flow"`
 }
 
 type Person struct {
-    name string
-    age  int
+	name string
+	age  int
 }
 
 type GetDeviceBody struct {
-    DeviceID string
+	DeviceID string
 }
 
-func getItem(deviceID string)(Device, error) {
-    var device Device
-
-    cfg, err := config.LoadDefaultConfig(context.TODO())
-    client := dynamodb.NewFromConfig(cfg)
-
-    env, _ := godotenv.Read(".env")
-
-    response, err := client.GetItem(context.Background(),
-	&dynamodb.GetItemInput{
-	    TableName: aws.String(env["DEVICE_FILTER_TABLENAME"]),
-	    Key: map[string]types.AttributeValue{
-		"deviceID": &types.AttributeValueMemberS{Value: *aws.String(deviceID)},
-	    },
-	})
-    if err != nil {
-	return device, nil
-    }
-
-    if response.Item == nil {
-	return device, nil
-    }
-
-    err = attributevalue.UnmarshalMap(response.Item, &device)
-
-    if err != nil {
-	return device, nil
-    }
-
-    return device, nil
+type CreateItemBody struct {
+	ID   string
+	Name string
+	Age  string
 }
 
-func getDevice(w http.ResponseWriter, req *http.Request) {
-    var body GetDeviceBody
+func getItem(deviceID string) (Device, error) {
+	var device Device
 
-    fmt.Println(req.Body)
+	cfg, err := config.LoadDefaultConfig(context.TODO())
+	client := dynamodb.NewFromConfig(cfg)
 
-    err := json.NewDecoder(req.Body).Decode(&body)
+	env, _ := godotenv.Read(".env")
 
-    if err != nil {
-        http.Error(w, err.Error(), http.StatusBadRequest)
-        return
-    }
+	response, err := client.GetItem(context.Background(),
+		&dynamodb.GetItemInput{
+			TableName: aws.String(env["DEVICE_FILTER_TABLENAME"]),
+			Key: map[string]types.AttributeValue{
+				"deviceID": &types.AttributeValueMemberS{Value: *aws.String(deviceID)},
+			},
+		})
+	if err != nil {
+		return device, nil
+	}
 
-    device, err := getItem(body.DeviceID)
+	if response.Item == nil {
+		return device, nil
+	}
 
-    fmt.Println(body)
+	err = attributevalue.UnmarshalMap(response.Item, &device)
 
-    json.NewEncoder(w).Encode(device)
+	if err != nil {
+		return device, nil
+	}
+	return device, nil
+}
+
+func getItemHandleFunc(w http.ResponseWriter, req *http.Request) {
+	var body GetDeviceBody
+
+	fmt.Println(req.Body)
+
+	err := json.NewDecoder(req.Body).Decode(&body)
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	device, err := getItem(body.DeviceID)
+
+	fmt.Println(body)
+
+	json.NewEncoder(w).Encode(device)
 }
 
 func main() {
-    http.HandleFunc("/get-device", getDevice)
-    http.ListenAndServe(":4000", nil)
+	http.HandleFunc("/get-item", getItemHandleFunc)
+	http.ListenAndServe(":4000", nil)
 }
-
